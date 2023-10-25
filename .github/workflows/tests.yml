@@ -1,0 +1,34 @@
+name: imgresizr tests
+
+on:
+  push:
+    branches:
+      - final*
+
+env:
+  GO111MODULE: "on"
+
+jobs:
+  tests_by_makefile:
+    runs-on: ubuntu-latest
+    if: contains(github.ref, 'final')
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: ^1.21
+
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: make lint
+        run: make lint
+        working-directory: ${{ env.BRANCH }}
+
+      - name: make build
+        run: make build
+        working-directory: ${{ env.BRANCH }}
+
+      - name: make test
+        run: make test
+        working-directory: ${{ env.BRANCH }}
