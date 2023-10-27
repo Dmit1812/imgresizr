@@ -52,7 +52,7 @@ func (l *dllist) Back() *DLListItem {
 }
 
 // pushFront private method adds an already created DLListItem to the front of the dllist
-// BEWARE! it assumes that the mutex lock should be set by the caller
+// BEWARE! it assumes that the mutex lock should be set by the caller.
 func (l *dllist) pushFront(i *DLListItem) *DLListItem {
 	// exit if i is nil
 	if i == nil {
@@ -113,7 +113,7 @@ func (l *dllist) PushBack(v interface{}) *DLListItem {
 
 // remove removes a DLListItem from the dllist
 // no checking if the item is in the dllist performed
-// BEWARE! it assumes that the mutex lock should be set by the caller
+// BEWARE! it assumes that the mutex lock should be set by the caller.
 func (l *dllist) remove(i *DLListItem) {
 	// exit if i is nil
 	if i == nil {
@@ -138,7 +138,7 @@ func (l *dllist) remove(i *DLListItem) {
 	l.len--
 }
 
-// Remove will set mutex lock and call the remove to remove a DLListItem from the dllist
+// Remove will set mutex lock and call the remove to remove a DLListItem from the dllist.
 func (l *dllist) Remove(i *DLListItem) {
 	// critical section start, it ends when return is called
 	l.mu.Lock()
@@ -148,7 +148,7 @@ func (l *dllist) Remove(i *DLListItem) {
 }
 
 // MoveToFront moves a DLListItem to the front of the dllist
-// no checking if the item is from the the dllist performed
+// no checking if the item is from the the dllist performed.
 func (l *dllist) MoveToFront(i *DLListItem) {
 	// critical section start, it ends when return is called
 	l.mu.Lock()
@@ -158,7 +158,7 @@ func (l *dllist) MoveToFront(i *DLListItem) {
 	l.pushFront(i)
 }
 
-// NewDLList creates a new dllist
+// NewDLList creates a new dllist.
 func NewDLList() DLList {
 	return new(dllist)
 }

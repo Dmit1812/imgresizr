@@ -93,7 +93,6 @@ func TestCache(t *testing.T) {
 	})
 
 	t.Run("purge logic - the least used element out of 3 shall be purged", func(t *testing.T) {
-
 		c := NewCache(3)
 
 		_ = c.Set("aaa", 100)
@@ -110,12 +109,9 @@ func TestCache(t *testing.T) {
 		require.False(t, ok)
 		require.Nil(t, val)
 	})
-
 }
 
 func TestCacheMultithreading(t *testing.T) {
-	//t.Skip() // Remove me if task with asterisk completed.
-
 	var a int32
 
 	myOnDeleteFunc := func(key Key, value interface{}) {
@@ -141,11 +137,12 @@ func TestCacheMultithreading(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 20_000; i++ {
-			c.Get(Key(strconv.Itoa(rand.Intn(1_000_000))))
+			c.Get(Key(strconv.Itoa(rand.Intn(1_000_000)))) //nolint:gosec
 		}
 	}()
 
 	wg.Wait()
 
-	require.Equal(t, int32(19_800), atomic.LoadInt32(&a), "number of deletions from cache should be 999000, but it was not")
+	require.Equal(t, int32(19_800), atomic.LoadInt32(&a),
+		"number of deletions from cache should be 999000, but it was not")
 }

@@ -51,6 +51,34 @@ func TestDLList(t *testing.T) {
 		require.Equal(t, []int{70, 80, 60, 40, 10, 30, 50}, elems)
 	})
 
+	// Verify that dllist is consistent after removing everything from it
+	t.Run("remove all", func(t *testing.T) {
+		l := NewDLList()
+
+		l.PushBack(20)     // [20]
+		l.PushFront(10)    // [10, 20]
+		l.PushBack(30)     // [10, 20, 30]
+		l.Remove(l.Back()) // [10, 20]
+		l.Remove(l.Back()) // [10]
+		l.Remove(l.Back()) // []
+
+		require.Equal(t, 0, l.Len())
+		require.Nil(t, l.Front())
+		require.Nil(t, l.Back())
+	})
+
+	// Ensure first pushback works correctly
+	t.Run("first pushback", func(t *testing.T) {
+		l := NewDLList()
+
+		l.PushBack(20)  // [10]
+		l.PushFront(10) // [10, 20]
+		l.PushBack(30)  // [10, 20, 30]
+		require.Equal(t, 3, l.Len())
+	})
+}
+
+func TestDLLListParallel(t *testing.T) {
 	// Confirm that dllist is consistent after adding to it in parallel goroutines
 	t.Run("parallel", func(t *testing.T) {
 		var wg sync.WaitGroup
@@ -81,15 +109,11 @@ func TestDLList(t *testing.T) {
 		elemsfb := make([]int, 0, l.Len())
 		for i := l.Front(); i != nil; i = i.Next {
 			elemsfb = append(elemsfb, i.Value.(int))
-			if i.Prev != nil {
-				if i.Prev.Next != i {
-					incorrectPointer = true
-				}
+			if i.Prev != nil && i.Prev.Next != i {
+				incorrectPointer = true
 			}
-			if i.Next != nil {
-				if i.Next.Prev != i {
-					incorrectPointer = true
-				}
+			if i.Next != nil && i.Next.Prev != i {
+				incorrectPointer = true
 			}
 		}
 
@@ -97,17 +121,14 @@ func TestDLList(t *testing.T) {
 		elemsbf := make([]int, 0, l.Len())
 		for i := l.Back(); i != nil; i = i.Prev {
 			elemsbf = append(elemsbf, i.Value.(int))
-			if i.Prev != nil {
-				if i.Prev.Next != i {
-					incorrectPointer = true
-				}
+			if i.Prev != nil && i.Prev.Next != i {
+				incorrectPointer = true
 			}
-			if i.Next != nil {
-				if i.Next.Prev != i {
-					incorrectPointer = true
-				}
+			if i.Next != nil && i.Next.Prev != i {
+				incorrectPointer = true
 			}
 		}
+
 		// reverse the slice elemsbf so it can be compared with elemsfb
 		sort.SliceStable(elemsbf, func(i, j int) bool {
 			return i > j
@@ -116,37 +137,16 @@ func TestDLList(t *testing.T) {
 		// it is expected that:
 		// 1 - count of of elements from front to back and from back to front should be equal to dllist length
 		// 2 - number of elements in dllist is equal to `threads` * length of initialization array
-		require.Truef(t, len(elemsfb) == l.Len() && len(elemsbf) == l.Len() && 2*threads*len(a) == l.Len(), "number of items in DLList if traversed front to back (%d) should be equal to dllist length stored inside (%d) and to back to front (%d) and to threads * length (%d)", len(elemsfb), l.Len(), len(elemsbf), threads*len(a))
+		require.Truef(t, len(elemsfb) == l.Len() && len(elemsbf) == l.Len() && 2*threads*len(a) == l.Len(),
+			"number of items in DLList if traversed front to back (%d) "+
+				"should be equal to dllist length stored inside (%d) "+
+				"and to back to front (%d) and to threads * length (%d)",
+			len(elemsfb), l.Len(), len(elemsbf), threads*len(a))
 		// 3 - elements correctly reference each other and back
 		require.Falsef(t, incorrectPointer, "elements should correctly reference each other and back")
 		// 4 - values are same when we compare front to back and reversed back to front
-		require.Equalf(t, elemsbf, elemsfb, "values shall be the same when we compare dllist created by front to back traversal and reversed dllist done back to front")
+		require.Equalf(t, elemsbf, elemsfb,
+			"values shall be the same when we compare dllist created by front to back traversal "+
+				"and reversed dllist done back to front")
 	})
-
-	// Verify that dllist is consistent after removing everything from it
-	t.Run("remove all", func(t *testing.T) {
-		l := NewDLList()
-
-		l.PushBack(20)     // [20]
-		l.PushFront(10)    // [10, 20]
-		l.PushBack(30)     // [10, 20, 30]
-		l.Remove(l.Back()) // [10, 20]
-		l.Remove(l.Back()) // [10]
-		l.Remove(l.Back()) // []
-
-		require.Equal(t, 0, l.Len())
-		require.Nil(t, l.Front())
-		require.Nil(t, l.Back())
-	})
-
-	// Ensure first pushback works correctly
-	t.Run("first pushback", func(t *testing.T) {
-		l := NewDLList()
-
-		l.PushBack(20)  // [10]
-		l.PushFront(10) // [10, 20]
-		l.PushBack(30)  // [10, 20, 30]
-		require.Equal(t, 3, l.Len())
-	})
-
 }

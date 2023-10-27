@@ -4,15 +4,15 @@ import "sync"
 
 type Key string
 
-// We will store this record in the queue - it allows to remove the item from dictionary on queue overflow
+// We will store this record in the queue - it allows to remove the item from dictionary on queue overflow.
 type record struct {
 	key   Key
 	value interface{}
 }
 
-// note - this function should be concurrency safe
+// Note - this function should be concurrency safe
 // it should be fast to return i.e. record what to delete and return - do not run long operations in this
-// handler
+// handler.
 type OnDeleteFunc func(key Key, value interface{})
 
 type Cache interface {
@@ -29,11 +29,12 @@ type lruCache struct {
 	onDeleteFunc OnDeleteFunc
 }
 
-func EmptyOnDeleteFunc(key Key, value interface{}) {
+func EmptyOnDeleteFunc(Key, interface{}) {
 }
 
 // Set puts a value for the key into the cache and moves it to the front of the queue
-// reduces the size of the cache if it is over the limit by removing item from the bottom of the queue (the least accessed one)
+// reduces the size of the cache if it is over the limit
+// by removing item from the bottom of the queue (the least accessed one).
 func (c *lruCache) Set(key Key, value interface{}) bool {
 	// create record to store in the queue
 	r := record{key, value}
@@ -69,7 +70,7 @@ func (c *lruCache) Set(key Key, value interface{}) bool {
 	return false
 }
 
-// Get returns the value for a given key, and moves the element with this key to the front of the queue
+// Get returns the value for a given key, and moves the element with this key to the front of the queue.
 func (c *lruCache) Get(key Key) (interface{}, bool) {
 	c.mu.Lock()
 	// if the key in dictionary then move this element to queue start and return its value and true
@@ -83,7 +84,7 @@ func (c *lruCache) Get(key Key) (interface{}, bool) {
 	return nil, false
 }
 
-// Clear removes all elements from the cache by creating new pointers and counting on GC
+// Clear removes all elements from the cache by creating new pointers and counting on GC.
 func (c *lruCache) Clear() {
 	// We count on the fact that Go cleares data not referenced any more so we simply create new dllists for cache to work
 	// without the actual clearing.
@@ -104,7 +105,7 @@ func (c *lruCache) Clear() {
 	c.mu.Unlock()
 }
 
-// NewCache creates a new cache and returns it
+// NewCache creates a new cache and returns it.
 func NewCache(capacity int) Cache {
 	return &lruCache{
 		capacity:     capacity,
@@ -114,12 +115,12 @@ func NewCache(capacity int) Cache {
 	}
 }
 
-// NewCache creates a new cache and returns it
-func NewCacheWithOnDelete(capacity int, OnDeleteFunc OnDeleteFunc) Cache {
+// NewCache creates a new cache and returns it.
+func NewCacheWithOnDelete(capacity int, onDeleteFunc OnDeleteFunc) Cache {
 	return &lruCache{
 		capacity:     capacity,
 		queue:        NewDLList(),
 		items:        make(map[Key]*DLListItem, capacity),
-		onDeleteFunc: OnDeleteFunc,
+		onDeleteFunc: onDeleteFunc,
 	}
 }
