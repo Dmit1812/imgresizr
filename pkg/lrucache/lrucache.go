@@ -29,9 +29,6 @@ type lruCache struct {
 	onDeleteFunc OnDeleteFunc
 }
 
-func EmptyOnDeleteFunc(Key, interface{}) {
-}
-
 // Set puts a value for the key into the cache and moves it to the front of the queue
 // reduces the size of the cache if it is over the limit
 // by removing item from the bottom of the queue (the least accessed one).
