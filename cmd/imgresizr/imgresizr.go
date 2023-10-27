@@ -1,7 +1,11 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/h2non/bimg"
+)
 
 func main() {
-	fmt.Println("vim-go")
+	fmt.Printf("imgresizr. bimg version: %s, vips version: %s", bimg.Version, bimg.VipsVersion)
 }

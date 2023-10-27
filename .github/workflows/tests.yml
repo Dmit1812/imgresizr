@@ -1,4 +1,4 @@
-name: imgresizr tests
+name: tests
 
 on:
   push:
@@ -17,6 +17,14 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: ^1.21
+
+      # - name: install-and-cache apt tools
+      #   uses: tecolicom/actions-use-apt-tools@v1.1
+      #   with:
+      #     packages: libvips-dev
+            
+      - name: Install vips
+        run: sudo apt-get install -y libvips-dev
 
       - name: Check out code
         uses: actions/checkout@v3
