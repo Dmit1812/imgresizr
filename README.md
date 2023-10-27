@@ -1,4 +1,4 @@
-# Проектная работа
+# Проектная работа ![TestsStatus](https://github.com/Dmit1812/imgresizr/actions/workflows/tests.yml/badge.svg) [![GoReport](https://goreportcard.com/badge/github.com/Dmit1812/imgresizr)](https://goreportcard.com/report/github.com/Dmit1812/imgresizr) ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 
 Необходимо выбрать и реализовать одну из предложенных тем:
 * [Превьювер изображений](./03-image-previewer.md)

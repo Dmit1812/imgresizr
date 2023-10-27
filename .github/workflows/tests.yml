@@ -1,4 +1,4 @@
-name: imgresizr tests
+name: tests
 
 on:
   push:
