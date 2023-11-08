@@ -15,12 +15,16 @@ linters-settings:
           - $gostd
           - github.com/google # all google packages
           - github.com/h2non/bimg
+          - github.com/rs/zerolog
+          - github.com/Dmit1812
       test:
         files:
           - "$test"
         allow:
           - $gostd
           - github.com/stretchr
+          - github.com/rs/zerolog
+          - github.com/Dmit1812
 
 linters:
   disable-all: true
