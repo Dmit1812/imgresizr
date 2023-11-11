@@ -48,7 +48,7 @@ func New(level LogLevel) *Logger {
 	l := new(Logger)
 	l.level = level
 	l.zll = zerolog.New(
-		zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339},
+		zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339},
 	).Level(zerolog.TraceLevel).With().Caller().Timestamp().Logger()
 
 	l.SetGlobalLevel(level)

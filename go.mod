@@ -4,6 +4,7 @@ go 1.21
 
 require (
 	github.com/h2non/bimg v1.1.9
+	github.com/julienschmidt/httprouter v1.3.0
 	github.com/rs/zerolog v1.31.0
 	github.com/stretchr/testify v1.8.4
 )

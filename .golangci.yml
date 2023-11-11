@@ -17,6 +17,7 @@ linters-settings:
           - github.com/h2non/bimg
           - github.com/rs/zerolog
           - github.com/Dmit1812
+          - github.com/julienschmidt/httprouter
       test:
         files:
           - "$test"
@@ -25,6 +26,7 @@ linters-settings:
           - github.com/stretchr
           - github.com/rs/zerolog
           - github.com/Dmit1812
+          - github.com/julienschmidt/httprouter
 
 linters:
   disable-all: true
