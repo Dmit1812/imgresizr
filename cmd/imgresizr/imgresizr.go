@@ -68,6 +68,13 @@ Other:
 Note:  
    Environment variables '%s', '%s', '%s', '%s' can be set prior 
    to execution to override whatever values were provided on command line
+   
+   To test in browser put:
+   http://localhost:9000/
+   then
+   fill/100/200/
+   then
+   raw.githubusercontent.com/OtusGolang/final_project/master/examples/image-previewer/_gopher_original_1024x504.jpg
 
 `
 )
