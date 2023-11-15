@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Dmit1812/imgresizr/internal/logger"
+	"github.com/Dmit1812/imgresizr/internal/lrufilecache"
 	internalhttp "github.com/Dmit1812/imgresizr/internal/server"
 	"github.com/h2non/bimg"
 )
@@ -22,7 +23,9 @@ const (
 var (
 	pAddr        = flag.String("a", "", "bind address")
 	pPort        = flag.Int("p", 9000, "port to listen")
-	pCacheSize   = flag.Int("c", 2, "how many images to keep in filesystem as a cache")
+	pFCacheSize  = flag.Int("cf", 2, "how many images to keep in filesystem as a cache")
+	pMCacheSize  = flag.Int("cm", 1, "how many images to keep in memory as a cache")
+	pCachePath   = flag.String("cp", "./cache", "where would the cache for images be located")
 	pVersion     = flag.Bool("v", false, "Show version")
 	pVersionLong = flag.Bool("version", false, "Show version")
 	pHelp        = flag.Bool("h", false, "Show help")
@@ -34,19 +37,21 @@ var (
 )
 
 const (
-	oErrorImage       = "error.png"
-	oCertFile         = ""      // TLS certificate file path
-	oKeyFile          = ""      // TLS private key file path
-	oReadTimeout      = int(30) // HTTP read timeout in seconds
-	oWriteTimeout     = int(30) // HTTP write timeout in seconds
-	oMemoryGCInterval = int(30) // Memory release inverval in seconds
+	oErrorImage        = "error.png"
+	oCertFile          = ""      // TLS certificate file path
+	oKeyFile           = ""      // TLS private key file path
+	oReadTimeout       = int(30) // HTTP read timeout in seconds
+	oWriteTimeout      = int(30) // HTTP write timeout in seconds
+	oMemoryGCInterval  = int(30) // Memory release inverval in seconds
+	oCacheConvertedDir = "resized"
 )
 
 const (
-	envPort      = "IMGRESIZR_PORT"
-	envAddr      = "IMGRESIZR_ADDR"
-	envCacheSize = "IMGRESIZR_CASHESIZE"
-	envLogLevel  = "IMGRESIZR_LOGLEVEL"
+	envPort       = "IMGRESIZR_PORT"
+	envAddr       = "IMGRESIZR_ADDR"
+	envFCacheSize = "IMGRESIZR_FCASHESIZE"
+	envMCacheSize = "IMGRESIZR_MCASHESIZE"
+	envLogLevel   = "IMGRESIZR_LOGLEVEL"
 
 	usage = `imgresizr %s
 
@@ -56,7 +61,9 @@ Usage:
 Options:
    -a <addr>                             bind address [default: *]
    -p <port>                             bind port [default: 9000]
-   -c <cache_size>                       how many images to keep in filesystem as a cache [default: 2]
+   -cf <cache_size>                      how many images to keep in filesystem as a cache [default: 2]
+   -cm <cache_size>                      how many images to keep in memory as a cache [default: 1]
+   -cp <cache_path>                      where would the cache for images be located [default: ./cache]
    -h, -help                             output help
    -v, -version                          output version
    -errorimage <path_to_image>           image to use on error
@@ -66,7 +73,7 @@ Other:
    On this machine will use %d cores
 
 Note:  
-   Environment variables '%s', '%s', '%s', '%s' can be set prior 
+   Environment variables '%s', '%s', '%s', '%s', '%s' can be set prior 
    to execution to override whatever values were provided on command line
    
    To test in browser put:
@@ -83,7 +90,8 @@ func main() {
 	var err error
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, usage, Version(), runtime.NumCPU(), envAddr, envPort, envCacheSize, envLogLevel)
+		fmt.Fprintf(os.Stderr, usage, Version(),
+			runtime.NumCPU(), envAddr, envPort, envFCacheSize, envMCacheSize, envLogLevel)
 	}
 
 	flag.Parse()
@@ -132,18 +140,24 @@ func main() {
 
 	addr := getEnvStr(envAddr, *pAddr)
 	port := getEnvInt(envPort, *pPort)
-	cachesize := getEnvInt(envCacheSize, *pCacheSize)
+	fcachesize := getEnvInt(envFCacheSize, *pFCacheSize)
+	mcachesize := getEnvInt(envMCacheSize, *pMCacheSize)
 
 	opts := &internalhttp.Server{
 		Address:          addr,
 		Port:             port,
-		CacheSize:        cachesize,
+		FCacheSize:       fcachesize,
+		MCacheSize:       mcachesize,
 		CertFile:         oCertFile,
 		KeyFile:          oKeyFile,
 		HTTPReadTimeout:  oReadTimeout,
 		HTTPWriteTimeout: oWriteTimeout,
 		CurrentVersions:  Version(),
-		Log:              *log,
+		Log:              log,
+		BaseImageCache: lrufilecache.NewLRUFileCache(fcachesize, mcachesize,
+			*pCachePath, log),
+		ConvertedImageCache: lrufilecache.NewLRUFileCache(fcachesize, mcachesize,
+			path.Join(*pCachePath, oCacheConvertedDir), log),
 	}
 
 	opts.ErrorImage, err = LoadImage(*pErrorImage, oPaths)

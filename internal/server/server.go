@@ -13,16 +13,19 @@ import (
 )
 
 type Server struct {
-	Address          string
-	Port             int
-	CacheSize        int
-	CertFile         string
-	KeyFile          string
-	HTTPReadTimeout  int
-	HTTPWriteTimeout int
-	CurrentVersions  string
-	Log              Logger
-	ErrorImage       []byte
+	Address             string
+	Port                int
+	FCacheSize          int
+	MCacheSize          int
+	CertFile            string
+	KeyFile             string
+	HTTPReadTimeout     int
+	HTTPWriteTimeout    int
+	CurrentVersions     string
+	Log                 Logger
+	BaseImageCache      Cache
+	ConvertedImageCache Cache
+	ErrorImage          []byte
 }
 
 type Logger interface {
@@ -30,6 +33,12 @@ type Logger interface {
 	Info(msg string)
 	Warn(msg string)
 	Error(msg string)
+}
+
+type Cache interface {
+	Set(key string, content []byte) bool
+	Get(key string) ([]byte, bool)
+	Clear()
 }
 
 func (o *Server) Serve() error {
@@ -81,18 +90,31 @@ func (o *Server) resizeRoute() func(w http.ResponseWriter, r *http.Request, ps h
 		o.Log.Info(fmt.Sprintf("will resize to %dx%d with operation %s", width, height, ps.ByName("operation")))
 		opts := Options{Width: width, Height: height, Operation: ps.ByName("operation")}
 
-		image, err := o.LoadImage(ps.ByName("url")[1:], &r.Header)
-		if err != nil {
-			o.Log.Error(err.Error())
-			o.failed(w, opts, err.Error())
-			return
-		}
+		baseimagekey := ps.ByName("url")[1:]
+		convertedimagekey := ps.ByName("width") + "x" + ps.ByName("height") + "-" + ps.ByName("url")[1:]
 
-		image, err = Resize(image, opts)
-		if err != nil {
-			o.Log.Error(err.Error())
-			o.failed(w, opts, err.Error())
-			return
+		image, ok := o.ConvertedImageCache.Get(convertedimagekey)
+		if !ok {
+			image, ok = o.BaseImageCache.Get(baseimagekey)
+			if !ok {
+				image, err = o.LoadImage(baseimagekey, &r.Header)
+				if err != nil {
+					o.Log.Error(err.Error())
+					o.failed(w, opts, err.Error())
+					return
+				}
+				o.BaseImageCache.Set(baseimagekey, image)
+				o.Log.Debug("Loaded base image " + baseimagekey + "from server and saved it to cache")
+			}
+
+			image, err = Resize(image, opts)
+			if err != nil {
+				o.Log.Error(err.Error())
+				o.failed(w, opts, err.Error())
+				return
+			}
+			o.ConvertedImageCache.Set(convertedimagekey, image)
+			o.Log.Debug("Saved converted image " + convertedimagekey + " to cache")
 		}
 
 		mime := GetImageMimeType(bimg.DetermineImageType(image))
