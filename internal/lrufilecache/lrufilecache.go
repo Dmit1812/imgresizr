@@ -52,6 +52,7 @@ func NewLRUFileCache(fcapacity, mcapacity int, basepath string, logger Logger) *
 	c.fcache = lrucache.NewCacheWithOnDelete(fcapacity, c.OnDeleteFunc)
 	c.mcache = lrucache.NewCache(mcapacity)
 	c.basepath = basepath
+	// create channel to receive file deletions
 	c.toDeleteChan = make(chan string, fcapacity+1)
 	// start deletion monitor
 	go func() {
@@ -59,6 +60,7 @@ func NewLRUFileCache(fcapacity, mcapacity int, basepath string, logger Logger) *
 			c.deleteFile(name, true)
 		}
 	}()
+	// load cache from disk
 	c.LoadAll()
 	// setup a go routine to receive files to delete
 	c.Log.Info(fmt.Sprintf("LRUFileCache started for path %s", basepath))
@@ -121,10 +123,10 @@ func (c *LRUFileCache) saveFile(name string, content []byte) error {
 }
 
 func (c *LRUFileCache) calculateHash(text string) string {
-	// Calculate the sha-512 hash of the filename
+	// Calculate the sha-512 hash of the text
 	data := []byte(text)
 	hash := sha512.Sum512(data)
-	// Convert the result to base64
+	// Convert the result to hex
 	result := hex.EncodeToString(hash[:])
 	// return the result
 	return result
@@ -151,15 +153,18 @@ func (c *LRUFileCache) Get(uri string) ([]byte, bool) {
 }
 
 func (c *LRUFileCache) getByHash(key string) ([]byte, bool) {
+	// to ensure that use counts are updated we ask both caches
 	v, mok := c.mcache.Get(key)
 	_, fok := c.fcache.Get(key) //nolint:ifshort
 
+	// if found in memory return content
 	if mok {
 		if v, ok := v.(cacheItem); ok {
 			return v.content, true
 		}
 	}
 
+	// if not found in memory load from file system
 	if fok {
 		b, err := c.loadFile(key)
 		if err == nil {
