@@ -1,5 +1,5 @@
 BIN := "./bin/imgresizr"
-#DOCKER_IMG="imgresizr:develop"
+DOCKER_IMG="imgresizr:develop"
 
 GIT_HASH := $(shell git log --format="%h" -n 1)
 LDFLAGS := -X main.release="develop" -X main.buildDate=$(shell date -u +%Y-%m-%dT%H:%M:%S) -X main.gitHash=$(GIT_HASH)
@@ -7,23 +7,23 @@ LDFLAGS := -X main.release="develop" -X main.buildDate=$(shell date -u +%Y-%m-%d
 build:
 	go build -v -o $(BIN) -ldflags "$(LDFLAGS)" ./cmd/imgresizr
 
-run: build
+run-local: build
 	$(BIN)
 
-#build-img:
-#	docker build \
-#		--build-arg=LDFLAGS="$(LDFLAGS)" \
-#		-t $(DOCKER_IMG) \
-#		-f build/Dockerfile .
+build-img:
+	docker build \
+		--build-arg=LDFLAGS="$(LDFLAGS)" \
+		-t $(DOCKER_IMG) \
+		-f ./build/imgresizr/Dockerfile .
 
-#run-img: build-img
-#	docker run $(DOCKER_IMG)
+run: 
+	docker-compose -f ./build/imgresizr/docker-compose.yml up --remove-orphans
 
 version: build
 	$(BIN) version
 
-test:
-	go test -race -count 100 ./internal/... ./pkg/...
+test: build
+	go test -race -count 100 ./internal/... ./pkg/... ./test/...
 #	go test -race ./internal/... ./pkg/...
 
 install-lint-deps:
@@ -32,4 +32,10 @@ install-lint-deps:
 lint: install-lint-deps
 	golangci-lint run ./...
 
-.PHONY: build run build-img run-img version test lint
+integration-test:
+#	docker-compose -f ./test/integration/tstimgsrc/docker-compose.yml up -d --remove-orphans
+	go test -tags integration ./test/...
+#   run test
+#	docker-compose -f ./test/integration/tstimgsrc/docker-compose.yml down
+
+.PHONY: build run build-img run-local version test lint integration-test
