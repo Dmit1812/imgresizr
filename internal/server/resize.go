@@ -13,7 +13,7 @@ type Options struct {
 }
 
 func Resize(image []byte, opts Options) (buf []byte, err error) {
-	opts.Force = true
+	// opts.Force = true
 	defer func() {
 		if r := recover(); r != nil {
 			switch value := r.(type) {
@@ -30,6 +30,7 @@ func Resize(image []byte, opts Options) (buf []byte, err error) {
 
 	params := bimg.Options{
 		Enlarge: true,
+		Trim:    true,
 		Width:   opts.Width,
 		Height:  opts.Height,
 		Force:   opts.Force,

@@ -27,7 +27,8 @@ linters-settings:
           - github.com/rs/zerolog
           - github.com/Dmit1812
           - github.com/julienschmidt/httprouter
-
+          - github.com/h2non/bimg
+          - github.com/vitali-fedulov/images4
 linters:
   disable-all: true
   enable:

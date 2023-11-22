@@ -3,11 +3,18 @@ package lrufilecache
 import (
 	"crypto/sha512"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/Dmit1812/imgresizr/pkg/lrucache"
+)
+
+const (
+	headerExtension = "header"
 )
 
 type LRUFileCache struct {
@@ -18,8 +25,9 @@ type LRUFileCache struct {
 	toDeleteChan chan string
 }
 
-type cacheItem struct {
-	content []byte
+type CacheItem struct {
+	Headers http.Header `json:"headers"`
+	Content []byte      `json:"-"`
 }
 
 type Logger interface {
@@ -30,8 +38,8 @@ type Logger interface {
 }
 
 type Cache interface {
-	Set(key string, content []byte) bool
-	Get(key string) ([]byte, bool)
+	Set(key string, ci CacheItem) bool
+	Get(key string) (CacheItem, bool)
 	Clear()
 }
 
@@ -75,12 +83,15 @@ func (c *LRUFileCache) LoadAll() {
 	}
 	n := 0
 	for _, f := range files {
-		if !f.IsDir() {
+		if !f.IsDir() && !strings.Contains(f.Name(), headerExtension) {
 			content, err := c.loadFile(f.Name())
 			if err == nil {
 				c.mcache.Set(f.Name(), content)
 				c.fcache.Set(f.Name(), "")
 				n++
+			} else {
+				// cleanup incorrect cache
+				c.deleteFile(f.Name(), true)
 			}
 		}
 	}
@@ -91,34 +102,68 @@ func (c *LRUFileCache) deleteFile(name string, silent bool) {
 	// Delete a file from the disk
 	c.Log.Debug(fmt.Sprintf("deleting file %s", name))
 	filename := path.Join(c.basepath, name)
+	filenameH := filename + "." + headerExtension
 
 	err := os.Remove(filename)
+	errH := os.Remove(filenameH)
+
 	if err != nil && !silent {
+		c.Log.Error(err.Error())
+		return
+	}
+
+	if errH != nil && !silent {
 		c.Log.Error(err.Error())
 		return
 	}
 }
 
-func (c *LRUFileCache) loadFile(name string) ([]byte, error) {
+func (c *LRUFileCache) loadFile(name string) (CacheItem, error) {
 	// Load an individual file and return it's content
+	var ci CacheItem
+	var err error
+	var jsonData []byte
+
 	filename := path.Join(c.basepath, name)
-	content, err := os.ReadFile(filename)
+	filenameH := filename + "." + headerExtension
+
+	ci.Content, err = os.ReadFile(filename)
 	if err != nil {
 		c.Log.Error(err.Error())
-		return nil, err
+		return CacheItem{}, err
 	}
-	return content, nil
+
+	jsonData, _ = os.ReadFile(filenameH)
+
+	err = json.Unmarshal(jsonData, &ci.Headers)
+	if err != nil {
+		c.Log.Error(err.Error())
+
+		return CacheItem{}, err
+	}
+	return ci, nil
 }
 
-func (c *LRUFileCache) saveFile(name string, content []byte) error {
+func (c *LRUFileCache) saveFile(name string, ci CacheItem) error {
 	// Save an individual file onto disk
 	filename := path.Join(c.basepath, name)
-	err := os.WriteFile(filename, content, 0o600)
+	filenameH := filename + "." + headerExtension
+
+	jsonData, err := json.Marshal(ci.Headers)
+	if err != nil {
+		c.Log.Error(err.Error())
+		return err
+	}
+	c.Log.Debug(fmt.Sprintf("saving file %s", name))
+
+	err = os.WriteFile(filename, ci.Content, 0o600)
 	if err != nil {
 		c.Log.Error(err.Error())
 		c.deleteFile(name, true)
 		return err
 	}
+
+	_ = os.WriteFile(filenameH, jsonData, 0o600)
 	return nil
 }
 
@@ -132,35 +177,34 @@ func (c *LRUFileCache) calculateHash(text string) string {
 	return result
 }
 
-func (c *LRUFileCache) Set(uri string, content []byte) bool {
+func (c *LRUFileCache) Set(uri string, ci CacheItem) bool {
 	key := c.calculateHash(uri)
-	return c.setByHash(key, content)
+	return c.setByHash(key, ci)
 }
 
-func (c *LRUFileCache) setByHash(key string, content []byte) bool {
-	v := cacheItem{content: content}
-	mfound := c.mcache.Set(key, v)
+func (c *LRUFileCache) setByHash(key string, ci CacheItem) bool {
+	mfound := c.mcache.Set(key, ci)
 	ffound := c.fcache.Set(key, "")
 	if !ffound {
-		c.saveFile(key, content)
+		c.saveFile(key, ci)
 	}
 	return mfound || ffound
 }
 
-func (c *LRUFileCache) Get(uri string) ([]byte, bool) {
+func (c *LRUFileCache) Get(uri string) (CacheItem, bool) {
 	key := c.calculateHash(uri)
 	return c.getByHash(key)
 }
 
-func (c *LRUFileCache) getByHash(key string) ([]byte, bool) {
+func (c *LRUFileCache) getByHash(key string) (CacheItem, bool) {
 	// to ensure that use counts are updated we ask both caches
 	v, mok := c.mcache.Get(key)
 	_, fok := c.fcache.Get(key) //nolint:ifshort
 
 	// if found in memory return content
 	if mok {
-		if v, ok := v.(cacheItem); ok {
-			return v.content, true
+		if ci, ok := v.(CacheItem); ok {
+			return ci, true
 		}
 	}
 
@@ -168,12 +212,12 @@ func (c *LRUFileCache) getByHash(key string) ([]byte, bool) {
 	if fok {
 		b, err := c.loadFile(key)
 		if err == nil {
-			c.mcache.Set(key, cacheItem{content: b})
+			c.mcache.Set(key, b)
 			return b, true
 		}
 	}
 
-	return nil, false
+	return CacheItem{}, false
 }
 
 func (c *LRUFileCache) Clear() {

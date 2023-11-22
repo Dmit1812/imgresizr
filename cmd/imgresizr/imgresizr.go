@@ -13,11 +13,8 @@ import (
 	"github.com/Dmit1812/imgresizr/internal/logger"
 	"github.com/Dmit1812/imgresizr/internal/lrufilecache"
 	internalhttp "github.com/Dmit1812/imgresizr/internal/server"
+	"github.com/Dmit1812/imgresizr/internal/utilities"
 	"github.com/h2non/bimg"
-)
-
-const (
-	version = "0.0.1"
 )
 
 var (
@@ -90,7 +87,7 @@ func main() {
 	var err error
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, usage, Version(),
+		fmt.Fprintf(os.Stderr, usage, utilities.Version(),
 			runtime.NumCPU(), envAddr, envPort, envFCacheSize, envMCacheSize, envLogLevel)
 	}
 
@@ -152,7 +149,7 @@ func main() {
 		KeyFile:          oKeyFile,
 		HTTPReadTimeout:  oReadTimeout,
 		HTTPWriteTimeout: oWriteTimeout,
-		CurrentVersions:  Version(),
+		CurrentVersions:  utilities.Version(),
 		Log:              log,
 		BaseImageCache: lrufilecache.NewLRUFileCache(fcachesize, mcachesize,
 			*pCachePath, log),
@@ -160,7 +157,7 @@ func main() {
 			path.Join(*pCachePath, oCacheConvertedDir), log),
 	}
 
-	opts.ErrorImage, err = LoadImage(*pErrorImage, oPaths)
+	opts.ErrorImage, _, err = utilities.LoadImage(*pErrorImage, oErrorImage, oPaths)
 	if err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
@@ -170,38 +167,6 @@ func main() {
 	if err != nil {
 		log.Error(fmt.Sprintf("cannot start the server: %s\n", err.Error()))
 	}
-}
-
-func LoadImage(f string, paths []string) ([]byte, error) {
-	var err error
-	var fc []byte
-
-	// ensure we have at least one empty in path if user provided f
-	if f != "" {
-		paths = []string{""}
-	} else {
-		f = oErrorImage
-	}
-
-	for _, p := range paths {
-		fn := path.Join(p, f)
-
-		_, err = os.Stat(fn)
-		if err != nil {
-			continue
-		}
-
-		fc, err = os.ReadFile(fn)
-		if err != nil {
-			continue
-		}
-		return fc, nil
-	}
-	return nil, fmt.Errorf("file %s was not found in the paths %v", f, paths)
-}
-
-func Version() string {
-	return version
 }
 
 func getEnvInt(envKey string, val int) int {

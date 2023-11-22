@@ -7,6 +7,7 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0
 	github.com/rs/zerolog v1.31.0
 	github.com/stretchr/testify v1.8.4
+	github.com/vitali-fedulov/images4 v1.2.2
 )
 
 require (
