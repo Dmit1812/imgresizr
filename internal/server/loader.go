@@ -47,14 +47,6 @@ func (o *Server) loadImage(url *url.URL, h *http.Header) ([]byte, *http.Header, 
 	return buf, &res.Header, nil
 }
 
-func copyHeaders(h *http.Header, req *http.Request) {
-	for key, values := range *h {
-		for _, value := range values {
-			req.Header.Add(key, value)
-		}
-	}
-}
-
 func (o *Server) createRequest(ctx context.Context, url *url.URL, h *http.Header) *http.Request {
 	req, _ := http.NewRequestWithContext(ctx, "GET", url.RequestURI(), nil)
 

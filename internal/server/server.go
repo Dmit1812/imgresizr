@@ -103,6 +103,7 @@ func (o *Server) resizeRoute() func(w http.ResponseWriter, r *http.Request, ps h
 			ci, ok = o.BaseImageCache.Get(baseimagekey)
 			image = ci.Content
 			imageResponseHeaders = &ci.Headers
+
 			if !ok {
 				image, imageResponseHeaders, err = o.LoadImageFromNetwork(baseimagekey, &r.Header)
 				if err != nil {
@@ -110,7 +111,10 @@ func (o *Server) resizeRoute() func(w http.ResponseWriter, r *http.Request, ps h
 					o.failed(w, opts, err.Error())
 					return
 				}
-				o.BaseImageCache.Set(baseimagekey, lrufilecache.CacheItem{Content: image, Headers: *imageResponseHeaders})
+				o.BaseImageCache.Set(baseimagekey, lrufilecache.CacheItem{
+					Content: image,
+					Headers: cleanHeaders(imageResponseHeaders),
+				})
 				o.Log.Debug("Loaded base image " + baseimagekey + "from server and saved it to cache")
 			}
 
@@ -120,15 +124,13 @@ func (o *Server) resizeRoute() func(w http.ResponseWriter, r *http.Request, ps h
 				o.failed(w, opts, err.Error())
 				return
 			}
-			o.ConvertedImageCache.Set(convertedimagekey, lrufilecache.CacheItem{Content: image, Headers: *imageResponseHeaders})
+			o.ConvertedImageCache.Set(convertedimagekey, lrufilecache.CacheItem{
+				Content: image, Headers: cleanHeaders(imageResponseHeaders),
+			})
 			o.Log.Debug("Saved converted image " + convertedimagekey + " to cache")
 		}
 
-		for key, values := range *imageResponseHeaders {
-			for _, value := range values {
-				w.Header().Add(key, value)
-			}
-		}
+		writeHeaders(imageResponseHeaders, w)
 
 		mime := GetImageMimeType(bimg.DetermineImageType(image))
 		w.Header().Set("Content-Type", mime)
