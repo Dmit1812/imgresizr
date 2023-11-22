@@ -33,9 +33,9 @@ lint: install-lint-deps
 	golangci-lint run ./...
 
 integration-test:
-#	docker-compose -f ./test/integration/tstimgsrc/docker-compose.yml up -d --remove-orphans
+	docker-compose -f ./test/integration/testimgsrv/docker-compose.yml up -d --remove-orphans
 	go test -tags integration ./test/...
 #   run test
-#	docker-compose -f ./test/integration/tstimgsrc/docker-compose.yml down
+	docker-compose -f ./test/integration/testimgsrv/docker-compose.yml down
 
 .PHONY: build run build-img run-local version test lint integration-test
