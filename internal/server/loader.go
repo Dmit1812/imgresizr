@@ -17,32 +17,34 @@ func addHTTPSToURL(url string) string {
 	return url
 }
 
-func (o *Server) LoadImage(imageURL string, h *http.Header) ([]byte, error) {
+func (o *Server) LoadImageFromNetwork(imageURL string, h *http.Header) ([]byte, *http.Header, error) {
 	url, err := url.Parse(addHTTPSToURL(imageURL))
 	if err != nil {
-		return nil, fmt.Errorf("invalid image URL: (url=%s)", url.RequestURI())
+		return nil, nil, fmt.Errorf("invalid image URL: (url=%s)", url.RequestURI())
 	}
 	return o.loadImage(url, h)
 }
 
-func (o *Server) loadImage(url *url.URL, h *http.Header) ([]byte, error) {
+func (o *Server) loadImage(url *url.URL, h *http.Header) ([]byte, *http.Header, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(o.HTTPReadTimeout)*time.Second)
 	defer cancel()
 	req := o.createRequest(ctx, url, h)
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("error downloading image: %w", err)
+		return nil, &res.Header, fmt.Errorf("error downloading image: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("error downloading image: (status=%d) (url=%s)", res.StatusCode, req.URL.RequestURI())
+		return nil, &res.Header,
+			fmt.Errorf("error downloading image: (status=%d) (url=%s)", res.StatusCode, req.URL.RequestURI())
 	}
 
 	buf, err := io.ReadAll(res.Body)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create image from response body: %w (url=%s)", err, req.URL.RequestURI())
+		return nil, &res.Header,
+			fmt.Errorf("unable to create image from response body: %w (url=%s)", err, req.URL.RequestURI())
 	}
-	return buf, nil
+	return buf, &res.Header, nil
 }
 
 func copyHeaders(h *http.Header, req *http.Request) {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Dmit1812/imgresizr/internal/lrufilecache"
 	"github.com/h2non/bimg"
 	"github.com/julienschmidt/httprouter"
 )
@@ -36,8 +37,8 @@ type Logger interface {
 }
 
 type Cache interface {
-	Set(key string, content []byte) bool
-	Get(key string) ([]byte, bool)
+	Set(key string, ci lrufilecache.CacheItem) bool
+	Get(key string) (lrufilecache.CacheItem, bool)
 	Clear()
 }
 
@@ -93,17 +94,23 @@ func (o *Server) resizeRoute() func(w http.ResponseWriter, r *http.Request, ps h
 		baseimagekey := ps.ByName("url")[1:]
 		convertedimagekey := ps.ByName("width") + "x" + ps.ByName("height") + "-" + ps.ByName("url")[1:]
 
-		image, ok := o.ConvertedImageCache.Get(convertedimagekey)
+		var imageResponseHeaders *http.Header
+
+		ci, ok := o.ConvertedImageCache.Get(convertedimagekey)
+		image := ci.Content
+		imageResponseHeaders = &ci.Headers
 		if !ok {
-			image, ok = o.BaseImageCache.Get(baseimagekey)
+			ci, ok = o.BaseImageCache.Get(baseimagekey)
+			image = ci.Content
+			imageResponseHeaders = &ci.Headers
 			if !ok {
-				image, err = o.LoadImage(baseimagekey, &r.Header)
+				image, imageResponseHeaders, err = o.LoadImageFromNetwork(baseimagekey, &r.Header)
 				if err != nil {
 					o.Log.Error(err.Error())
 					o.failed(w, opts, err.Error())
 					return
 				}
-				o.BaseImageCache.Set(baseimagekey, image)
+				o.BaseImageCache.Set(baseimagekey, lrufilecache.CacheItem{Content: image, Headers: *imageResponseHeaders})
 				o.Log.Debug("Loaded base image " + baseimagekey + "from server and saved it to cache")
 			}
 
@@ -113,8 +120,14 @@ func (o *Server) resizeRoute() func(w http.ResponseWriter, r *http.Request, ps h
 				o.failed(w, opts, err.Error())
 				return
 			}
-			o.ConvertedImageCache.Set(convertedimagekey, image)
+			o.ConvertedImageCache.Set(convertedimagekey, lrufilecache.CacheItem{Content: image, Headers: *imageResponseHeaders})
 			o.Log.Debug("Saved converted image " + convertedimagekey + " to cache")
+		}
+
+		for key, values := range *imageResponseHeaders {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
 		}
 
 		mime := GetImageMimeType(bimg.DetermineImageType(image))
