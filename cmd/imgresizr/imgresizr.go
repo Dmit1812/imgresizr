@@ -1,13 +1,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path"
 	"runtime"
 	rd "runtime/debug"
 	"strconv"
+	"syscall"
 	"time"
 
 	c "github.com/Dmit1812/imgresizr/internal/config"
@@ -84,6 +87,7 @@ func main() {
 		KeyFile:          c.OKeyFile,
 		HTTPReadTimeout:  c.OReadTimeout,
 		HTTPWriteTimeout: c.OWriteTimeout,
+		ShutdownTimeout:  c.OShutdownTimeout,
 		CurrentVersions:  utilities.Version(),
 		Log:              log,
 		BaseImageCache: lrufilecache.NewLRUFileCache(fcachesize, mcachesize,
@@ -98,7 +102,24 @@ func main() {
 		os.Exit(1)
 	}
 
-	err = opts.Serve()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create a channel to receive the signal notifications
+	signalChan := make(chan os.Signal, 1)
+
+	// Notify the channel for SIGINT (Ctrl+C) and SIGTERM signals
+	signal.Notify(signalChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		for {
+			sig := <-signalChan
+			log.Info(fmt.Sprintf("Received signal: %s", sig))
+			cancel()
+		}
+	}()
+
+	err = opts.Serve(ctx)
 	if err != nil {
 		log.Error(fmt.Sprintf("cannot start the server: %s\n", err.Error()))
 	}

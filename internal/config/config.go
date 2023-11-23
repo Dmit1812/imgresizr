@@ -24,6 +24,7 @@ const (
 	OKeyFile           = ""      // TLS private key file path
 	OReadTimeout       = int(30) // HTTP read timeout in seconds
 	OWriteTimeout      = int(30) // HTTP write timeout in seconds
+	OShutdownTimeout   = int(60) // Server shutdown timeout in seconds
 	OMemoryGCInterval  = int(30) // Memory release inverval in seconds
 	OCacheConvertedDir = "resized"
 )

@@ -1,11 +1,14 @@
 package internalhttp
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Dmit1812/imgresizr/internal/lrufilecache"
@@ -22,6 +25,7 @@ type Server struct {
 	KeyFile             string
 	HTTPReadTimeout     int
 	HTTPWriteTimeout    int
+	ShutdownTimeout     int
 	CurrentVersions     string
 	Log                 Logger
 	BaseImageCache      Cache
@@ -42,21 +46,65 @@ type Cache interface {
 	Clear()
 }
 
-func (o *Server) Serve() error {
+func (o *Server) Serve(ctx context.Context) error {
+	var wg sync.WaitGroup
+	var server *http.Server
+	var inshutdown bool
+
 	addr := o.Address + ":" + strconv.Itoa(o.Port)
 	handler := o.NewServerMux()
 
-	server := &http.Server{
-		Addr:           addr,
-		Handler:        handler,
-		MaxHeaderBytes: 1 << 20,
-		ReadTimeout:    time.Duration(o.HTTPReadTimeout) * time.Second,
-		WriteTimeout:   time.Duration(o.HTTPWriteTimeout) * time.Second,
-	}
+	wg.Add(1)
+	go func() {
+		for {
+			// check in case shutdown was requested
+			if inshutdown {
+				o.Log.Debug("we are in shutdown, will no longer start server")
+				break
+			}
 
-	o.Log.Info(fmt.Sprintf("server listening on %s", addr))
+			server = &http.Server{
+				Addr:           addr,
+				Handler:        handler,
+				MaxHeaderBytes: 1 << 20,
+				ReadTimeout:    time.Duration(o.HTTPReadTimeout) * time.Second,
+				WriteTimeout:   time.Duration(o.HTTPWriteTimeout) * time.Second,
+			}
 
-	return o.listenAndServe(server)
+			o.Log.Info(fmt.Sprintf("server listening on %s", addr))
+
+			err := o.listenAndServe(server)
+			// check for ErrServerClosed and stop the server loop
+			if errors.Is(err, http.ErrServerClosed) {
+				o.Log.Info("server shutdown was requested and server closed")
+				break
+			}
+			// server finished itself without any error - stop the server loop
+			if err == nil {
+				o.Log.Info("server successfully finished")
+				break
+			}
+			o.Log.Error(err.Error() + ", will restart")
+		}
+		wg.Done()
+	}()
+
+	// Wait for the shutdown signal
+	<-ctx.Done()
+
+	// Prevent startup of the new server as we are shutting down
+	inshutdown = true
+
+	// Shutdown the server and wait for it to finish
+	shutdownctx, shutdowncancel := context.WithTimeout(context.Background(), time.Duration(o.ShutdownTimeout)*time.Second)
+	defer shutdowncancel()
+
+	server.Shutdown(shutdownctx)
+
+	// Wait for the server go function to finish
+	wg.Wait()
+
+	return nil
 }
 
 func (o *Server) NewServerMux() http.Handler {
