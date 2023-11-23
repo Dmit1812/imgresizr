@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	c "github.com/Dmit1812/imgresizr/internal/config"
 	"github.com/Dmit1812/imgresizr/internal/logger"
 	"github.com/Dmit1812/imgresizr/internal/lrufilecache"
 	internalhttp "github.com/Dmit1812/imgresizr/internal/server"
@@ -17,83 +18,17 @@ import (
 	"github.com/h2non/bimg"
 )
 
-var (
-	pAddr        = flag.String("a", "", "bind address")
-	pPort        = flag.Int("p", 9000, "port to listen")
-	pFCacheSize  = flag.Int("cf", 2, "how many images to keep in filesystem as a cache")
-	pMCacheSize  = flag.Int("cm", 1, "how many images to keep in memory as a cache")
-	pCachePath   = flag.String("cp", "./cache", "where would the cache for images be located")
-	pVersion     = flag.Bool("v", false, "Show version")
-	pVersionLong = flag.Bool("version", false, "Show version")
-	pHelp        = flag.Bool("h", false, "Show help")
-	pHelpLong    = flag.Bool("help", false, "Show help")
-	pErrorImage  = flag.String("errorimage", "", "Path to image to return as Error")
-	pLogLevel    = flag.Int("loglevel", 1, "Set log level (1 - debug, 2 - info, 3 - warn, 4 - error)")
-
-	oPaths = []string{"./", "./assets/", "../../assets/"}
-)
-
-const (
-	oErrorImage        = "error.png"
-	oCertFile          = ""      // TLS certificate file path
-	oKeyFile           = ""      // TLS private key file path
-	oReadTimeout       = int(30) // HTTP read timeout in seconds
-	oWriteTimeout      = int(30) // HTTP write timeout in seconds
-	oMemoryGCInterval  = int(30) // Memory release inverval in seconds
-	oCacheConvertedDir = "resized"
-)
-
-const (
-	envPort       = "IMGRESIZR_PORT"
-	envAddr       = "IMGRESIZR_ADDR"
-	envFCacheSize = "IMGRESIZR_FCASHESIZE"
-	envMCacheSize = "IMGRESIZR_MCASHESIZE"
-	envLogLevel   = "IMGRESIZR_LOGLEVEL"
-
-	usage = `imgresizr %s
-
-Usage:
-   imgresizr -p 80
- 
-Options:
-   -a <addr>                             bind address [default: *]
-   -p <port>                             bind port [default: 9000]
-   -cf <cache_size>                      how many images to keep in filesystem as a cache [default: 2]
-   -cm <cache_size>                      how many images to keep in memory as a cache [default: 1]
-   -cp <cache_path>                      where would the cache for images be located [default: ./cache]
-   -h, -help                             output help
-   -v, -version                          output version
-   -errorimage <path_to_image>           image to use on error
-   -loglevel <level>                     log level (1 - debug, 2 - info, 3 - warn, 4 - error) [default: warn]
-
-Other:
-   On this machine will use %d cores
-
-Note:  
-   Environment variables '%s', '%s', '%s', '%s', '%s' can be set prior 
-   to execution to override whatever values were provided on command line
-   
-   To test in browser put:
-   http://localhost:9000/
-   then
-   fill/100/200/
-   then
-   raw.githubusercontent.com/OtusGolang/final_project/master/examples/image-previewer/_gopher_original_1024x504.jpg
-
-`
-)
-
 func main() {
 	var err error
 
 	flag.Usage = func() {
-		fmt.Fprintf(os.Stderr, usage, utilities.Version(),
-			runtime.NumCPU(), envAddr, envPort, envFCacheSize, envMCacheSize, envLogLevel)
+		fmt.Fprintf(os.Stderr, c.Usage, utilities.Version(),
+			runtime.NumCPU(), c.EnvAddr, c.EnvPort, c.EnvFCacheSize, c.EnvMCacheSize, c.EnvLogLevel)
 	}
 
-	flag.Parse()
+	c.InitParams()
 
-	if *pHelp || *pHelpLong {
+	if *c.PHelp || *c.PHelpLong {
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -104,16 +39,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	if *pVersion || *pVersionLong {
+	if *c.PVersion || *c.PVersionLong {
 		fmt.Printf("imgresizr. bimg version: %s, vips version: %s\n", bimg.Version, bimg.VipsVersion)
 		os.Exit(1)
 	}
 
-	loglevel := getEnvInt(envLogLevel, *pLogLevel)
+	loglevel := getEnvInt(c.EnvLogLevel, *c.PLogLevel)
 
-	if *pLogLevel < int(logger.DEBUG) || *pLogLevel > int(logger.ERROR) {
+	if *c.PLogLevel < int(logger.DEBUG) || *c.PLogLevel > int(logger.ERROR) {
 		fmt.Fprintf(os.Stderr, "incorrect log level %d specified with option -loglevel or env variable '%s' "+
-			"please use an integer from 1 to 4.\n", *pLogLevel, envLogLevel)
+			"please use an integer from 1 to 4.\n", *c.PLogLevel, c.EnvLogLevel)
 		flag.Usage()
 		os.Exit(1)
 	}
@@ -124,8 +59,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	if oMemoryGCInterval > 0 {
-		runGCToReleaseMemoryContinuously(oMemoryGCInterval, log)
+	if c.OMemoryGCInterval > 0 {
+		runGCToReleaseMemoryContinuously(c.OMemoryGCInterval, log)
 	}
 
 	{
@@ -135,29 +70,29 @@ func main() {
 		}
 	}
 
-	addr := getEnvStr(envAddr, *pAddr)
-	port := getEnvInt(envPort, *pPort)
-	fcachesize := getEnvInt(envFCacheSize, *pFCacheSize)
-	mcachesize := getEnvInt(envMCacheSize, *pMCacheSize)
+	addr := getEnvStr(c.EnvAddr, *c.PAddr)
+	port := getEnvInt(c.EnvPort, *c.PPort)
+	fcachesize := getEnvInt(c.EnvFCacheSize, *c.PFCacheSize)
+	mcachesize := getEnvInt(c.EnvMCacheSize, *c.PMCacheSize)
 
 	opts := &internalhttp.Server{
 		Address:          addr,
 		Port:             port,
 		FCacheSize:       fcachesize,
 		MCacheSize:       mcachesize,
-		CertFile:         oCertFile,
-		KeyFile:          oKeyFile,
-		HTTPReadTimeout:  oReadTimeout,
-		HTTPWriteTimeout: oWriteTimeout,
+		CertFile:         c.OCertFile,
+		KeyFile:          c.OKeyFile,
+		HTTPReadTimeout:  c.OReadTimeout,
+		HTTPWriteTimeout: c.OWriteTimeout,
 		CurrentVersions:  utilities.Version(),
 		Log:              log,
 		BaseImageCache: lrufilecache.NewLRUFileCache(fcachesize, mcachesize,
-			*pCachePath, log),
+			*c.PCachePath, log),
 		ConvertedImageCache: lrufilecache.NewLRUFileCache(fcachesize, mcachesize,
-			path.Join(*pCachePath, oCacheConvertedDir), log),
+			path.Join(*c.PCachePath, c.OCacheConvertedDir), log),
 	}
 
-	opts.ErrorImage, _, err = utilities.LoadImage(*pErrorImage, oErrorImage, oPaths)
+	opts.ErrorImage, _, err = utilities.LoadImage(*c.PErrorImage, c.OErrorImage, c.OPaths)
 	if err != nil {
 		log.Error(err.Error())
 		os.Exit(1)
