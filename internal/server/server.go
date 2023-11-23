@@ -46,20 +46,27 @@ type Cache interface {
 	Clear()
 }
 
-func (o *Server) Serve(ctx context.Context) error {
+func (o *Server) Serve(ctx context.Context, restartOnError bool) error {
 	var wg sync.WaitGroup
 	var server *http.Server
 	var inshutdown bool
+	var err error
 
 	addr := o.Address + ":" + strconv.Itoa(o.Port)
 	handler := o.NewServerMux()
 
+	// allow for cancel of the parent context
+	_, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for {
 			// check in case shutdown was requested
 			if inshutdown {
 				o.Log.Debug("we are in shutdown, will no longer start server")
+				// no parent context cancel is needed
 				break
 			}
 
@@ -73,20 +80,30 @@ func (o *Server) Serve(ctx context.Context) error {
 
 			o.Log.Info(fmt.Sprintf("server listening on %s", addr))
 
-			err := o.listenAndServe(server)
+			err = o.listenAndServe(server)
 			// check for ErrServerClosed and stop the server loop
 			if errors.Is(err, http.ErrServerClosed) {
 				o.Log.Info("server shutdown was requested and server closed")
+				err = nil
+				// no need to cancel the parent context as it was already cancelled
 				break
 			}
 			// server finished itself without any error - stop the server loop
 			if err == nil {
 				o.Log.Info("server successfully finished")
+				// cancel the parent context
+				cancel()
+				break
+			}
+			//
+			if !restartOnError {
+				o.Log.Debug("server finished with error: " + err.Error() + ", will not restart as restartOnError is false")
+				// cancel the parent context
+				cancel()
 				break
 			}
 			o.Log.Error(err.Error() + ", will restart")
 		}
-		wg.Done()
 	}()
 
 	// Wait for the shutdown signal
@@ -104,7 +121,7 @@ func (o *Server) Serve(ctx context.Context) error {
 	// Wait for the server go function to finish
 	wg.Wait()
 
-	return nil
+	return err
 }
 
 func (o *Server) NewServerMux() http.Handler {

@@ -119,7 +119,7 @@ func main() {
 		}
 	}()
 
-	err = opts.Serve(ctx)
+	err = opts.Serve(ctx, true)
 	if err != nil {
 		log.Error(fmt.Sprintf("cannot start the server: %s\n", err.Error()))
 	}
