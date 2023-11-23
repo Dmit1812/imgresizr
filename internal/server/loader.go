@@ -50,7 +50,7 @@ func (o *Server) loadImage(url *url.URL, h *http.Header) ([]byte, *http.Header, 
 func (o *Server) createRequest(ctx context.Context, url *url.URL, h *http.Header) *http.Request {
 	req, _ := http.NewRequestWithContext(ctx, "GET", url.RequestURI(), nil)
 
-	copyHeaders(h, req)
+	CopyHeaders(h, req)
 
 	// gofreq.Header.Set("User-Agent", "imgresizr "+Version)
 	req.URL = url

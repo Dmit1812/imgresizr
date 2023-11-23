@@ -10,12 +10,11 @@ import (
 	"path"
 	"strings"
 
+	"github.com/Dmit1812/imgresizr/internal/config"
 	"github.com/Dmit1812/imgresizr/pkg/lrucache"
 )
 
-const (
-	headerExtension = "header"
-)
+var headerExtension = config.OFileCacheHeaderExtension
 
 type LRUFileCache struct {
 	basepath     string

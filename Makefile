@@ -16,7 +16,7 @@ build-img:
 		-t $(DOCKER_IMG) \
 		-f ./build/imgresizr/Dockerfile .
 
-run: 
+run: build-img
 	docker-compose -f ./build/imgresizr/docker-compose.yml up --remove-orphans
 
 version: build
@@ -24,6 +24,7 @@ version: build
 
 test: build
 	go test -race -count 100 ./internal/... ./pkg/... ./test/...
+	$(MAKE) integration-test
 #	go test -race ./internal/... ./pkg/...
 
 install-lint-deps:
@@ -33,9 +34,9 @@ lint: install-lint-deps
 	golangci-lint run ./...
 
 integration-test:
-	docker-compose -f ./test/integration/testimgsrv/docker-compose.yml up -d --remove-orphans
+	docker-compose -f ./test/integration/testimgsrv/docker-compose.yml up -d --remove-orphans || true
 	go test -tags integration ./test/...
 #   run test
-	docker-compose -f ./test/integration/testimgsrv/docker-compose.yml down
+	docker-compose -f ./test/integration/testimgsrv/docker-compose.yml down || true
 
 .PHONY: build run build-img run-local version test lint integration-test

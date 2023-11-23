@@ -23,7 +23,7 @@ func shouldSkipHeader(key string) bool {
 	return false
 }
 
-func copyHeaders(h *http.Header, req *http.Request) {
+func CopyHeaders(h *http.Header, req *http.Request) {
 	for key, values := range *h {
 		for _, value := range values {
 			if !shouldSkipHeader(key) {
