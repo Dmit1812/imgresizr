@@ -33,9 +33,9 @@ install-lint-deps:
 lint: install-lint-deps
 	golangci-lint run ./...
 
-integration-test:
+integration-test: build
 	docker-compose -f ./test/integration/testimgsrv/docker-compose.yml up -d --remove-orphans || true
-	go test -tags integration ./test/...
+	go test -race -count 2 -tags integration ./test/...
 #   run test
 	docker-compose -f ./test/integration/testimgsrv/docker-compose.yml down || true
 

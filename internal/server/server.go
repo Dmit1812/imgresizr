@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Dmit1812/imgresizr/internal/lrufilecache"
@@ -49,8 +50,8 @@ type Cache interface {
 func (o *Server) Serve(ctx context.Context, restartOnError bool) error {
 	var wg sync.WaitGroup
 	var server *http.Server
-	var inshutdown bool
 	var err error
+	var inshutdown int32
 
 	addr := o.Address + ":" + strconv.Itoa(o.Port)
 	handler := o.NewServerMux()
@@ -63,8 +64,7 @@ func (o *Server) Serve(ctx context.Context, restartOnError bool) error {
 	go func() {
 		defer wg.Done()
 		for {
-			// check in case shutdown was requested
-			if inshutdown {
+			if atomic.LoadInt32(&inshutdown) > 0 {
 				o.Log.Debug("we are in shutdown, will no longer start server")
 				// no parent context cancel is needed
 				break
@@ -82,12 +82,12 @@ func (o *Server) Serve(ctx context.Context, restartOnError bool) error {
 
 			err = o.listenAndServe(server)
 			// check for ErrServerClosed and stop the server loop
-			if errors.Is(err, http.ErrServerClosed) {
-				o.Log.Info("server shutdown was requested and server closed")
-				err = nil
-				// no need to cancel the parent context as it was already cancelled
-				break
-			}
+			// if errors.Is(err, http.ErrServerClosed) {
+			// 	o.Log.Info("server shutdown was requested and server closed")
+			// 	err = nil
+			// 	// no need to cancel the parent context as it was already cancelled
+			// 	break
+			// }
 			// server finished itself without any error - stop the server loop
 			if err == nil {
 				o.Log.Info("server successfully finished")
@@ -110,7 +110,7 @@ func (o *Server) Serve(ctx context.Context, restartOnError bool) error {
 	<-ctx.Done()
 
 	// Prevent startup of the new server as we are shutting down
-	inshutdown = true
+	atomic.StoreInt32(&inshutdown, 1)
 
 	// Shutdown the server and wait for it to finish
 	shutdownctx, shutdowncancel := context.WithTimeout(context.Background(), time.Duration(o.ShutdownTimeout)*time.Second)
@@ -121,6 +121,9 @@ func (o *Server) Serve(ctx context.Context, restartOnError bool) error {
 	// Wait for the server go function to finish
 	wg.Wait()
 
+	if errors.Is(err, http.ErrServerClosed) {
+		err = nil
+	}
 	return err
 }
 
@@ -153,42 +156,56 @@ func (o *Server) resizeRoute() func(w http.ResponseWriter, r *http.Request, ps h
 			return
 		}
 
-		o.Log.Info(fmt.Sprintf("will resize to %dx%d with operation %s", width, height, ps.ByName("operation")))
 		opts := Options{Width: width, Height: height, Operation: ps.ByName("operation")}
 
 		baseimagekey := ps.ByName("url")[1:]
 		convertedimagekey := ps.ByName("width") + "x" + ps.ByName("height") + "-" + ps.ByName("url")[1:]
+		o.Log.Info(fmt.Sprintf("will resize to %dx%d with operation %s image at %s",
+			width, height, ps.ByName("operation"), baseimagekey))
 
 		var imageResponseHeaders *http.Header
+		var cifound, bifound bool
 
-		ci, ok := o.ConvertedImageCache.Get(convertedimagekey)
+		ci, cifound := o.ConvertedImageCache.Get(convertedimagekey)
 		image := ci.Content
 		imageResponseHeaders = &ci.Headers
-		if !ok {
-			ci, ok = o.BaseImageCache.Get(baseimagekey)
+
+		if !cifound {
+			ci, bifound = o.BaseImageCache.Get(baseimagekey)
 			image = ci.Content
 			imageResponseHeaders = &ci.Headers
+		}
 
-			if !ok {
-				image, imageResponseHeaders, err = o.LoadImageFromNetwork(baseimagekey, &r.Header)
-				if err != nil {
-					o.Log.Error(err.Error())
-					o.failed(w, opts, err.Error())
-					return
-				}
-				o.BaseImageCache.Set(baseimagekey, lrufilecache.CacheItem{
-					Content: image,
-					Headers: cleanHeaders(imageResponseHeaders),
-				})
-				o.Log.Debug("Loaded base image " + baseimagekey + "from server and saved it to cache")
+		if !cifound && !bifound {
+			image, imageResponseHeaders, err = o.LoadImageFromNetwork(baseimagekey, &r.Header)
+			if err != nil {
+				o.Log.Error(err.Error())
+				o.failed(w, opts, err.Error())
+				return
 			}
 
+			if !imageOK(image) {
+				err = fmt.Errorf("invalid image at URL: (url=%s)", baseimagekey)
+				o.Log.Error(err.Error())
+				o.failed(w, opts, err.Error())
+				return
+			}
+
+			o.BaseImageCache.Set(baseimagekey, lrufilecache.CacheItem{
+				Content: image,
+				Headers: cleanHeaders(imageResponseHeaders),
+			})
+			o.Log.Debug("Loaded base image " + baseimagekey + " from server and saved it to cache")
+		}
+
+		if !cifound {
 			image, err = Resize(image, opts)
 			if err != nil {
 				o.Log.Error(err.Error())
 				o.failed(w, opts, err.Error())
 				return
 			}
+
 			o.ConvertedImageCache.Set(convertedimagekey, lrufilecache.CacheItem{
 				Content: image, Headers: cleanHeaders(imageResponseHeaders),
 			})
@@ -228,6 +245,15 @@ func parseDimensions(value string) (int, int, error) {
 	}
 
 	return width, height, err
+}
+
+func imageOK(image []byte) bool {
+	b := bimg.NewImage(image)
+	if b == nil {
+		return false
+	}
+	_, err := b.Size()
+	return err == nil
 }
 
 func (o *Server) failed(w http.ResponseWriter, opts Options, msg string) {

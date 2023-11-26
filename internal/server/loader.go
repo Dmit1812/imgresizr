@@ -20,7 +20,7 @@ func addHTTPSToURL(url string) string {
 func (o *Server) LoadImageFromNetwork(imageURL string, h *http.Header) ([]byte, *http.Header, error) {
 	url, err := url.Parse(addHTTPSToURL(imageURL))
 	if err != nil {
-		return nil, nil, fmt.Errorf("invalid image URL: (url=%s)", url.RequestURI())
+		return nil, &http.Header{}, fmt.Errorf("invalid image URL: (url=%s)", url.RequestURI())
 	}
 	return o.loadImage(url, h)
 }
@@ -30,8 +30,12 @@ func (o *Server) loadImage(url *url.URL, h *http.Header) ([]byte, *http.Header, 
 	defer cancel()
 	req := o.createRequest(ctx, url, h)
 	res, err := http.DefaultClient.Do(req)
+	// if err != nil the res will be undefined
 	if err != nil {
-		return nil, &res.Header, fmt.Errorf("error downloading image: %w", err)
+		if res != nil {
+			return nil, &res.Header, fmt.Errorf("error downloading image: %w", err)
+		}
+		return nil, &http.Header{}, fmt.Errorf("error downloading image: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != 200 {
@@ -50,7 +54,9 @@ func (o *Server) loadImage(url *url.URL, h *http.Header) ([]byte, *http.Header, 
 func (o *Server) createRequest(ctx context.Context, url *url.URL, h *http.Header) *http.Request {
 	req, _ := http.NewRequestWithContext(ctx, "GET", url.RequestURI(), nil)
 
-	CopyHeaders(h, req)
+	if h != nil {
+		CopyHeaders(h, req)
+	}
 
 	// gofreq.Header.Set("User-Agent", "imgresizr "+Version)
 	req.URL = url

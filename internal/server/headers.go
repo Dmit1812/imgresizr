@@ -35,6 +35,9 @@ func CopyHeaders(h *http.Header, req *http.Request) {
 
 func cleanHeaders(h *http.Header) http.Header {
 	cleaned := make(http.Header)
+	if h == nil {
+		return cleaned
+	}
 	for key, values := range *h {
 		for _, value := range values {
 			if !shouldSkipHeader(key) {
