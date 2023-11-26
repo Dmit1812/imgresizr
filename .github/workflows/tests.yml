@@ -22,7 +22,6 @@ jobs:
       #   uses: tecolicom/actions-use-apt-tools@v1.1
       #   with:
       #     packages: libvips-dev
-            
       - name: Install vips
         run: sudo apt-get update && sudo apt-get install -y libvips-dev
 
