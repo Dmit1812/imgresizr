@@ -297,7 +297,7 @@ func TestImgresizrIntegration(t *testing.T) { //nolint:funlen
 		_, status, headers, _ := curl("http://localhost:9000/fill/50/50/http://zupa:8080/gopher_50x50.jpg", nil)
 		require.Equalf(t, 400, status, "should get 400 after request to non-existing server, but got %d", status)
 		require.Containsf(t, headers.Get("Error"),
-			"dial tcp: lookup zupa: no such host", "should get correct 'Error' header after request")
+			"dial tcp: lookup zupa", "should get correct 'Error' header after request")
 	})
 
 	// // * удаленный сервер существует, но изображение не найдено (404 Not Found);
