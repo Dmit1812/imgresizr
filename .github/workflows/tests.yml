@@ -24,7 +24,7 @@ jobs:
       #     packages: libvips-dev
             
       - name: Install vips
-        run: sudo apt-get install -y libvips-dev
+        run: sudo apt-get update && apt-get install -y libvips-dev
 
       - name: Check out code
         uses: actions/checkout@v3
