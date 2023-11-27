@@ -21,6 +21,29 @@ func TestCache(t *testing.T) {
 		require.False(t, ok)
 	})
 
+	t.Run("zero capacity cache a.k.a. no cache", func(t *testing.T) {
+		testFunc := func(t *testing.T, c Cache) {
+			t.Helper()
+
+			ok := c.Set("aaa", "")
+			require.False(t, ok)
+
+			v, ok := c.Get("aaa")
+			require.False(t, ok)
+			require.Nil(t, v)
+
+			v, ok = c.Get("bbb")
+			require.False(t, ok)
+			require.Nil(t, v)
+		}
+
+		c := NewCacheWithOnDelete(0, nil)
+		testFunc(t, c)
+
+		c = NewCache(0)
+		testFunc(t, c)
+	})
+
 	t.Run("simple", func(t *testing.T) {
 		c := NewCache(5)
 
@@ -53,7 +76,7 @@ func TestCache(t *testing.T) {
 	t.Run("clear shall work and run 3 deletions", func(t *testing.T) {
 		var a int32
 
-		myOnDeleteFunc := func(key Key, value interface{}) {
+		myOnDeleteFunc := func(key string, value interface{}) {
 			s := key
 			v := value.(int)
 			atomic.AddInt32(&a, 1)
@@ -114,7 +137,7 @@ func TestCache(t *testing.T) {
 func TestCacheMultithreading(t *testing.T) {
 	var a int32
 
-	myOnDeleteFunc := func(key Key, value interface{}) {
+	myOnDeleteFunc := func(key string, value interface{}) {
 		s := key
 		v := value.(int)
 		atomic.AddInt32(&a, 1)
@@ -130,14 +153,14 @@ func TestCacheMultithreading(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 20_000; i++ {
-			c.Set(Key(strconv.Itoa(i)), i)
+			c.Set(strconv.Itoa(i), i)
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
 		for i := 0; i < 20_000; i++ {
-			c.Get(Key(strconv.Itoa(rand.Intn(1_000_000)))) //nolint:gosec
+			c.Get(strconv.Itoa(rand.Intn(1_000_000))) //nolint:gosec
 		}
 	}()
 

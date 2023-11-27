@@ -2,40 +2,35 @@ package lrucache
 
 import "sync"
 
-type Key string
-
 // We will store this record in the queue - it allows to remove the item from dictionary on queue overflow.
 type record struct {
-	key   Key
+	key   string
 	value interface{}
 }
 
 // Note - this function should be concurrency safe
 // it should be fast to return i.e. record what to delete and return - do not run long operations in this
 // handler.
-type OnDeleteFunc func(key Key, value interface{})
+type OnDeleteFunc func(key string, value interface{})
 
 type Cache interface {
-	Set(key Key, value interface{}) bool
-	Get(key Key) (interface{}, bool)
+	Set(key string, value interface{}) bool
+	Get(key string) (interface{}, bool)
 	Clear()
 }
 
 type lruCache struct {
 	capacity     int
 	queue        DLList
-	items        map[Key]*DLListItem
+	items        map[string]*DLListItem
 	mu           sync.RWMutex
 	onDeleteFunc OnDeleteFunc
-}
-
-func EmptyOnDeleteFunc(Key, interface{}) {
 }
 
 // Set puts a value for the key into the cache and moves it to the front of the queue
 // reduces the size of the cache if it is over the limit
 // by removing item from the bottom of the queue (the least accessed one).
-func (c *lruCache) Set(key Key, value interface{}) bool {
+func (c *lruCache) Set(key string, value interface{}) bool {
 	// create record to store in the queue
 	r := record{key, value}
 	// is element key in the cache
@@ -47,9 +42,11 @@ func (c *lruCache) Set(key Key, value interface{}) bool {
 		c.mu.Unlock()
 		return true
 	}
-	// if element not in the cache - add the key to dictionary and add to start of queue
-	el := c.queue.PushFront(r)
-	c.items[key] = el
+	// if element not in the cache and capacity is over 0 - add the key to dictionary and add to start of queue
+	if c.capacity > 0 {
+		el := c.queue.PushFront(r)
+		c.items[key] = el
+	}
 
 	//    in case cache size is greater then capacity - remove the last element and its key from the dictionary
 	if c.capacity > 0 && c.queue.Len() > c.capacity {
@@ -71,7 +68,7 @@ func (c *lruCache) Set(key Key, value interface{}) bool {
 }
 
 // Get returns the value for a given key, and moves the element with this key to the front of the queue.
-func (c *lruCache) Get(key Key) (interface{}, bool) {
+func (c *lruCache) Get(key string) (interface{}, bool) {
 	c.mu.Lock()
 	// if the key in dictionary then move this element to queue start and return its value and true
 	if el, ok := c.items[key]; ok {
@@ -101,26 +98,32 @@ func (c *lruCache) Clear() {
 
 	c.mu.Lock()
 	c.queue = NewDLList()
-	c.items = make(map[Key]*DLListItem, c.capacity)
+	c.items = make(map[string]*DLListItem, c.capacity)
 	c.mu.Unlock()
 }
 
 // NewCache creates a new cache and returns it.
 func NewCache(capacity int) Cache {
+	if capacity < 0 {
+		capacity = 0
+	}
 	return &lruCache{
 		capacity:     capacity,
 		queue:        NewDLList(),
-		items:        make(map[Key]*DLListItem, capacity),
+		items:        make(map[string]*DLListItem, capacity),
 		onDeleteFunc: nil,
 	}
 }
 
 // NewCache creates a new cache and returns it.
 func NewCacheWithOnDelete(capacity int, onDeleteFunc OnDeleteFunc) Cache {
+	if capacity < 0 {
+		capacity = 0
+	}
 	return &lruCache{
 		capacity:     capacity,
 		queue:        NewDLList(),
-		items:        make(map[Key]*DLListItem, capacity),
+		items:        make(map[string]*DLListItem, capacity),
 		onDeleteFunc: onDeleteFunc,
 	}
 }

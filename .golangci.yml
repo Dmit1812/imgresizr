@@ -15,13 +15,20 @@ linters-settings:
           - $gostd
           - github.com/google # all google packages
           - github.com/h2non/bimg
+          - github.com/rs/zerolog
+          - github.com/Dmit1812
+          - github.com/julienschmidt/httprouter
       test:
         files:
           - "$test"
         allow:
           - $gostd
           - github.com/stretchr
-
+          - github.com/rs/zerolog
+          - github.com/Dmit1812
+          - github.com/julienschmidt/httprouter
+          - github.com/h2non/bimg
+          - github.com/vitali-fedulov/images4
 linters:
   disable-all: true
   enable:
